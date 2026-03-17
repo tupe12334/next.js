@@ -1716,7 +1716,10 @@ impl<B: BackingStorage> TurboTasksBackendInner<B> {
         turbo_tasks: &dyn TurboTasksBackendApi<TurboTasksBackend<B>>,
     ) {
         if !self.should_track_dependencies() {
-            panic!("Dependency tracking is disabled so invalidation is not allowed");
+            // When dependency tracking is disabled, tasks are cached forever and never
+            // re-execute. Invalidation requests are no-ops (e.g. filesystem write side
+            // effects can still fire read invalidators, which must be ignored here).
+            return;
         }
         operation::InvalidateOperation::run(
             smallvec![task_id],
@@ -1732,7 +1735,9 @@ impl<B: BackingStorage> TurboTasksBackendInner<B> {
         turbo_tasks: &dyn TurboTasksBackendApi<TurboTasksBackend<B>>,
     ) {
         if !self.should_track_dependencies() {
-            panic!("Dependency tracking is disabled so invalidation is not allowed");
+            // When dependency tracking is disabled, tasks are cached forever and never
+            // re-execute. Invalidation requests are no-ops.
+            return;
         }
         operation::InvalidateOperation::run(
             tasks.iter().copied().collect(),
@@ -1748,7 +1753,9 @@ impl<B: BackingStorage> TurboTasksBackendInner<B> {
         turbo_tasks: &dyn TurboTasksBackendApi<TurboTasksBackend<B>>,
     ) {
         if !self.should_track_dependencies() {
-            panic!("Dependency tracking is disabled so invalidation is not allowed");
+            // When dependency tracking is disabled, tasks are cached forever and never
+            // re-execute. Invalidation requests are no-ops.
+            return;
         }
         operation::InvalidateOperation::run(
             tasks.iter().copied().collect(),
