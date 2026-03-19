@@ -2167,6 +2167,49 @@ where
             WellKnownFunctionKind::NodeWorkerConstructor => {
                 let args = linked_args().await?;
                 if !args.is_empty() {
+                    // When `{ eval: true }` is passed as the second argument,
+                    // the first argument is inline JS code, not a file path.
+                    // Skip creating a worker reference in that case.
+                    if let Some(JsValue::Object { parts, .. }) = args.get(1) {
+                        let eval_value = parts.iter().find_map(|part| match part {
+                            ObjectPart::KeyValue(
+                                JsValue::Constant(JsConstantValue::Str(key)),
+                                value,
+                            ) if key.as_str() == "eval" => Some(value),
+                            _ => None,
+                        });
+                        if let Some(eval_value) = eval_value {
+                            match eval_value {
+                                // eval: true — first arg is code, not a path
+                                JsValue::Constant(JsConstantValue::True) => {
+                                    return Ok(());
+                                }
+                                // eval: false — first arg is a path, continue
+                                // normally
+                                JsValue::Constant(JsConstantValue::False) => {}
+                                // eval is set but not a literal boolean — we
+                                // can't know if it's code or a path at compile
+                                // time
+                                _ => {
+                                    let (args, hints) = explain_args(args);
+                                    handler.span_warn_with_code(
+                                        span,
+                                        &format!(
+                                            "new Worker({args}) has a dynamic `eval` option{hints}",
+                                        ),
+                                        DiagnosticId::Lint(
+                                            errors::failed_to_analyze::ecmascript::NEW_WORKER
+                                                .to_string(),
+                                        ),
+                                    );
+                                    if ignore_dynamic_requests {
+                                        return Ok(());
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     let pat = js_value_to_pattern(&args[0]);
                     if !pat.has_constant_parts() {
                         let (args, hints) = explain_args(args);
